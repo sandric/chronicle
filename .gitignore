@@ -9,3 +9,5 @@ pom.xml.asc
 /.nrepl-port
 /repos
 server.log
+*.DS_STORE
+.idea
