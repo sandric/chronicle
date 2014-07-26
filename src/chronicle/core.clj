@@ -3,11 +3,11 @@
            (org.eclipse.jgit.revwalk RevCommit)
            (org.eclipse.jgit.api Git)
            (java.sql Time))
-  (:require [chronicle.clj-jgit.internal]
-            [chronicle.clj-jgit.porcelain]
-            [chronicle.clj-jgit.querying]
-            [zeromq.zmq :as zmq]
-
+  (:require [zeromq.zmq :as zmq]
+            [chronicle.clj-jgit.internal :as internal]
+            [chronicle.clj-jgit.porcelain :as porcelain]
+            [chronicle.clj-jgit.querying :as querying]
+            [chronicle.clj-jgit.util :as util]
             [clojure.data.json :as json]))
 
 (defn foo
@@ -18,29 +18,29 @@
 
 (defn get_repo [repos_forder repo_name repo_url]
   (try
-    (def repo (chronicle.clj-jgit.porcelain/load-repo (str repos_forder "/" repo_name)))
+    (def repo (porcelain/load-repo (str repos_forder "/" repo_name)))
     (catch FileNotFoundException e
-      (def repo (chronicle.clj-jgit.porcelain/git-clone-full repo_url (str repos_forder "/" repo_name))))
+      (def repo (porcelain/git-clone-full repo_url (str repos_forder "/" repo_name))))
     ))
 
 (defn get_commits []
-  (map #(chronicle.clj-jgit.querying/commit-info-without-branches
+  (map #(querying/commit-info-without-branches
             repo
             (chronicle.clj-jgit.internal/new-rev-walk repo)
             %)
-       (chronicle.clj-jgit.porcelain/git-log repo)))
+       (porcelain/git-log repo)))
 
 (defn get-commit-file-tree [^Git repo ^RevCommit rev-commit]
-  (let [tree-walk (chronicle.clj-jgit.internal/new-tree-walk repo rev-commit)
+  (let [tree-walk (internal/new-tree-walk repo rev-commit)
         changes (transient [])]
     (while (.next tree-walk)
-      (conj! changes (chronicle.clj-jgit.util/normalize-path (.getPathString tree-walk))))
+      (conj! changes (util/normalize-path (.getPathString tree-walk))))
     (persistent! changes)))
 
 (defn get_full_commits_history []
   (reverse
     (map #(dissoc (assoc %
-           :diff (chronicle.clj-jgit.querying/changed-files-with-patch repo (:raw %))
+           :diff (querying/changed-files-with-patch repo (:raw %))
            :files (get-commit-file-tree repo (:raw %)))
            :repo :raw :time)
          (get_commits))))
@@ -64,5 +64,3 @@
           (zmq/send-str sender (json/write-str (get_full_commits_history)))
           )))))
 
-(get_repo "repos", "slim", "https://github.com/slim-template/slim.git")
-(get_full_commits_history)
